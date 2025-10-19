@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Activity Packlist Generator</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 20px; }
+h1 { text-align: center; }
+label, button { margin: 5px; }
+input[type="number"] { width: 60px; }
+.activity-box { margin: 10px 0; }
+#activityEditor { display: none; border: 1px solid #ccc; padding: 10px; margin-top: 20px; }
+.activity-edit-block { border: 1px solid #ddd; padding: 10px; margin: 5px 0; border-radius: 8px; }
+button { cursor: pointer; }
+@media print {
+  body * { visibility: hidden; }
+  #checklistDiv, #checklistDiv * { visibility: visible; }
+  #checklistDiv { position: absolute; left: 0; top: 0; width: 100%; }
+}
+</style>
+</head>
+<body>
+<h1>Activity Packlist Generator</h1>
+
+<div>
+  <label>Participants:</label>
+  <input type="number" id="participants" value="10" min="0">
+  <label>Instructors:</label>
+  <input type="number" id="instructors" value="2" min="0">
+</div>
+
+<div id="activityList" class="activity-box"></div>
+
+<div>
+  <button id="generateChecklist">Generate Checklist</button>
+  <button id="printChecklist">Print Checklist</button>
+  <button id="editActivities">Edit Activities</button>
+</div>
+
+<div id="checklistDiv"></div>
+
+<div id="activityEditor">
+  <h3>Edit Activities</h3>
+  <div id="editorContainer"></div>
+  <button id="saveActivities">Save</button>
+</div>
+
+<script>
+let activities = JSON.parse(localStorage.getItem('activities')) || {
+  "Caving": [
+    {"name": "Helmet", "baseQty": 1, "location": "Gear Shed"},
+    {"name": "Headlamp", "baseQty": 1, "location": "Gear Shed"},
+    {"name": "Caving Suit", "baseQty": 1, "location": "Gear Shed"}
+  ],
+  "Sea Kayaking": [
+    {"name": "Kayak", "baseQty": 1, "location": "Gear Shed"},
+    {"name": "Paddle", "baseQty": 1, "location": "Gear Shed"},
+    {"name": "PFD", "baseQty": 1, "location": "Gear Shed"}
+  ],
+  "SUP": [
+    {"name": "SUP Board", "baseQty": 1, "location": "Gear Shed"},
+    {"name": "Paddle", "baseQty": 1, "location": "Gear Shed"},
+    {"name": "Leash", "baseQty": 1, "location": "Gear Shed"}
+  ],
+  "Tramping": [
+    {"name": "Pack", "baseQty": 1, "location": "Gear Shed"},
+    {"name": "Map", "baseQty": 1, "location": "Office"},
+    {"name": "First Aid Kit", "baseQty": 1, "location": "Office"}
+  ],
+  "Coasteering": [
+    {"name": "Helmet", "baseQty": 1, "location": "Gear Shed"},
+    {"name": "Wetsuit", "baseQty": 1, "location": "Gear Shed"},
+    {"name": "PFD", "baseQty": 1, "location": "Gear Shed"}
+  ]
+};
+
+function renderActivities() {
+  const container = document.getElementById('activityList');
+  container.innerHTML = '';
+  for (let activity in activities) {
+    const label = document.createElement('label');
+    label.innerHTML = `<input type="checkbox" value="${activity}"> ${activity}`;
+    container.appendChild(label);
+  }
+}
+renderActivities();
+
+document.getElementById('generateChecklist').onclick = () => {
+  const selected = Array.from(document.querySelectorAll('#activityList input:checked')).map(i => i.value);
+  const participants = parseInt(document.getElementById('participants').value) || 0;
+  const instructors = parseInt(document.getElementById('instructors').value) || 0;
+  if (selected.length === 0) { alert('Please select at least one activity.'); return; }
+  const total = participants + instructors;
+  const checklistDiv = document.getElementById('checklistDiv');
+  checklistDiv.innerHTML = '';
+  selected.forEach(activity => {
+    const items = activities[activity];
+    const grouped = {};
+    items.forEach(i => {
+      if (!grouped[i.location]) grouped[i.location] = [];
+      grouped[i.location].push(i);
+    });
+    const table = document.createElement('table');
+    table.border = '1';
+    table.style.marginTop = '20px';
+    table.innerHTML = `<tr><th colspan="3">${activity}</th></tr>`;
+    for (let loc in grouped) {
+      table.innerHTML += `<tr><td colspan="3"><strong>${loc}</strong></td></tr>`;
+      grouped[loc].forEach(i => {
+        table.innerHTML += `<tr><td>${i.name}</td><td>${i.baseQty * total}</td><td><input type='checkbox'></td></tr>`;
+      });
+    }
+    checklistDiv.appendChild(table);
+  });
+};
+
+document.getElementById('printChecklist').onclick = () => {
+  const content = document.getElementById('checklistDiv').innerHTML.trim();
+  if (!content) { alert('Please generate a checklist first.'); return; }
+  window.print();
+};
+
+document.getElementById('editActivities').onclick = () => {
+  const editor = document.getElementById('activityEditor');
+  const container = document.getElementById('editorContainer');
+  editor.style.display = editor.style.display === 'none' ? 'block' : 'none';
+  container.innerHTML = '';
+  for (let activity in activities) {
+    const div = document.createElement('div');
+    div.className = 'activity-edit-block';
+    const html = [`<h4>${activity}</h4>`];
+    activities[activity].forEach((item, idx) => {
+      html.push(`<div><input value="${item.name}" placeholder="Item name"> 
+      <input type="number" value="${item.baseQty}" min="1" style="width:60px;">
+      <input value="${item.location}" placeholder="Location">
+      <button onclick="removeItem('${activity}', ${idx})">Delete</button></div>`);
+    });
+    html.push(`<button onclick="addItem('${activity}')">Add Item</button>`);
+    div.innerHTML = html.join('');
+    container.appendChild(div);
+  }
+};
+
+function addItem(activity) {
+  activities[activity].push({ name: "New Item", baseQty: 1, location: "Gear Shed" });
+  document.getElementById('editActivities').click();
+}
+
+function removeItem(activity, index) {
+  activities[activity].splice(index, 1);
+  document.getElementById('editActivities').click();
+}
+
+document.getElementById('saveActivities').onclick = () => {
+  const blocks = document.querySelectorAll('.activity-edit-block');
+  blocks.forEach(block => {
+    const name = block.querySelector('h4').innerText;
+    const inputs = block.querySelectorAll('div input');
+    activities[name] = [];
+    for (let i = 0; i < inputs.length; i += 3) {
+      activities[name].push({
+        name: inputs[i].value,
+        baseQty: parseInt(inputs[i + 1].value),
+        location: inputs[i + 2].value
+      });
+    }
+  });
+  localStorage.setItem('activities', JSON.stringify(activities));
+  document.getElementById('activityEditor').style.display = 'none';
+  renderActivities();
+  alert('Activities saved!');
+};
+</script>
+</body>
+</html>
